@@ -1,4 +1,3 @@
-from turtle import color
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -33,21 +32,21 @@ def airTunnelPlot(df):
     return fig
 
 
-Machine = (sys.argv[1]).upper()
-print(Machine)
-p = Path(f"C:/Users/TonyWitt/OneDrive - Evolve/{Machine}/{Machine}_Job_Data")
+if __name__ == "__main__":
+    Machine = (sys.argv[1]).upper()
+    print(Machine)
+    p = Path(f"C:/Users/TonyWitt/OneDrive - Evolve/{Machine}/{Machine}_Job_Data")
 
-
-with PdfPages(f"{Machine}AirTunnelPressures.pdf") as pp:
-    for job in os.listdir(p):
-        jobStartTime = int(job[:10])
-        jobStartDate = datetime.fromtimestamp(jobStartTime)
-        # grab data after date in epoch time
-        if jobStartTime > 1663171587:
-            df = pd.read_excel(p / job)
-            print(f"Saving {job}")
-            fig = airTunnelPlot(df)
-            pp.savefig(fig)
-            plt.close(fig)
-        else:
-            pass
+    with PdfPages(f"{Machine}AirTunnelPressures.pdf") as pp:
+        for job in os.listdir(p):
+            jobStartTime = int(job[:10])
+            jobStartDate = datetime.fromtimestamp(jobStartTime)
+            # grab data after date in epoch time
+            if jobStartTime > 1663171587:
+                df = pd.read_excel(p / job)
+                print(f"Saving {job}")
+                fig = airTunnelPlot(df)
+                pp.savefig(fig)
+                plt.close(fig)
+            else:
+                pass
