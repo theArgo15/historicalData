@@ -6,13 +6,14 @@ import sys
 
 # Power by Heater in kW
 otherHeatDutyCycle = 0.5
-# new platen heaters 3kW old ???
-PlatenHeaterPower = 0
-Zone1PartHeaterPower = 9
-Zone2PartHeaterPower = 9
-Zone3PartHeaterPower = 3
-Zone4PartHeaterPower = 6
-ImageHeaterPower = 18
+# new platen heaters 4.32kW for qty 6 rods. old 2.5kW
+PlatenHeaterPower = [2.5, 4.32]
+# IR lamps are 3kW at 400V. We run at 480V so we limit to 72% duty cycle therfore 100% duty cycle is 4.167kW
+Zone1PartHeaterPower = 4.167 * 3
+Zone2PartHeaterPower = 4.167 * 3
+Zone3PartHeaterPower = 4.167 * 1
+Zone4PartHeaterPower = 4.167 * 2
+ImageHeaterPower = 4.167 * 6
 OtherHeatPower = 19 * otherHeatDutyCycle
 
 # ChilledWaterHistorical.py svp0 or svp2 or svp3 etc.
@@ -33,6 +34,7 @@ DeltaTMeanValues = pd.DataFrame(
         "BTMDelta",
         "AirTunnelDelta",
         "MassFlow",
+        "AirTunnelPct",
     ]
 )
 # this reads in job data we care about and summarizes it in a single row added to a second data frame
@@ -59,6 +61,7 @@ for job in os.listdir(p):
                     "PartHeatDutyCycleZ3",
                     "PartHeatDutyCycleZ4",
                     "ImageHeatDutyCycle",
+                    "AirTunnelPct",
                 ],
             )
             # Replace negative values of PlatenCLC control with 0. We only care about the heater being on
@@ -114,6 +117,7 @@ for job in os.listdir(p):
                         newColumns["PartHeatDutyCycleZ3"].mean(),
                         newColumns["PartHeatDutyCycleZ4"].mean(),
                         newColumns["ImageHeatDutyCycle"].mean(),
+                        newColumns["AirTunnelPct"].mean(),
                     ]
                 ],
                 columns=[
@@ -134,6 +138,7 @@ for job in os.listdir(p):
                     "PartHeatDutyCycleZ3",
                     "PartHeatDutyCycleZ4",
                     "ImageHeatDutyCycle",
+                    "AirTunnelPct",
                 ],
             )
             DeltaTMeanValues = pd.concat([DeltaTMeanValues, newRow])
@@ -151,13 +156,44 @@ DeltaTMeanValues["AverageTemperatureDelta(C)"] = (
     + 0.36 * DeltaTMeanValues["AirTunnelDelta"]
     + 0.46 * DeltaTMeanValues["BTMDelta"]
 )
-# Q = mdot c delta T calculation with mdot being a fraction of flow based on the manual flow meters. We are assuming this distribution is similar for all machines c is 4.2 J
+# Q = mdot c delta T calculation with mdot being a fraction of flow based on the manual flow meters. We are assuming this distribution is similar for all machines. c is 4.2 J/g degC
+c = 4.2
+
+DeltaTMeanValues["ImageHeaterPowerRemoved(kW)"] = (
+    0.04
+    * DeltaTMeanValues["MassFlow"]
+    * c
+    * DeltaTMeanValues["ImageHeaterDelta"]
+    / 1000
+)
+DeltaTMeanValues["TransfusePowerRemoved(kW)"] = (
+    0.04 * DeltaTMeanValues["MassFlow"] * c * DeltaTMeanValues["TransfuseDelta"] / 1000
+)
+DeltaTMeanValues["WebFramePowerRemoved(kW)"] = (
+    0.05 * DeltaTMeanValues["MassFlow"] * c * DeltaTMeanValues["WebFrameDelta"] / 1000
+)
+DeltaTMeanValues["XStagePowerRemoved(kW)"] = (
+    0.05 * DeltaTMeanValues["MassFlow"] * c * DeltaTMeanValues["XStageDelta"] / 1000
+)
+DeltaTMeanValues["AirTunnelPowerRemoved(kW)"] = (
+    0.36 * DeltaTMeanValues["MassFlow"] * c * DeltaTMeanValues["AirTunnelDelta"] / 1000
+)
+DeltaTMeanValues["BTMPowerRemoved(kW)"] = (
+    0.46 * DeltaTMeanValues["MassFlow"] * c * DeltaTMeanValues["BTMDelta"] / 1000
+)
+
 DeltaTMeanValues["AveragePowerRemoved(kW)"] = (
     DeltaTMeanValues["MassFlow"]
     * 4.2
     * DeltaTMeanValues["AverageTemperatureDelta(C)"]
     / 1000
 )
+# logic for old vs new platen heaters
+if Machine == "SVP0" or Machine == "SVP1":
+    PlatenHeaterPower = PlatenHeaterPower[0]
+else:
+    PlatenHeaterPower = PlatenHeaterPower[1]
+
 # Heat power calculated by heater power duty cycle plus various component estimate. duty cycle in percent, so divide by 100
 DeltaTMeanValues["AveragePowerAdded(kW)"] = (
     PlatenHeaterPower * DeltaTMeanValues["PlatenCLCDutyCycle"] / 100
@@ -168,5 +204,13 @@ DeltaTMeanValues["AveragePowerAdded(kW)"] = (
     + ImageHeaterPower * DeltaTMeanValues["ImageHeatDutyCycle"] / 100
     + OtherHeatPower
 )
+
+DeltaTMeanValues["Percent Heat Removed By Chillers"] = (
+    DeltaTMeanValues["AveragePowerRemoved(kW)"]
+    / DeltaTMeanValues["AveragePowerAdded(kW)"]
+    * 100
+)
+
+
 DeltaTMeanValues.to_csv(f"{Machine} DeltaTMeanValues.csv", index=False)
 print(counter)
